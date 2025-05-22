@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 import joblib
 
-# Load model
+# Load model and get expected features
 model = joblib.load("rf_eta_model.pkl")
 expected_features = list(model.feature_names_in_)
 
@@ -25,31 +25,40 @@ window = st.selectbox("Time Window", [
 ])
 shift = st.selectbox("Shift", ["Morning", "Evening"])
 
-# Initialize input row with zeros
+# Initialize all expected features with 0
 row = {feature: 0 for feature in expected_features}
 
-# Set values from user input
-row['SKU_Count'] = sku
-row['Zone_Distance_km'] = distance
-row['Rider_Speed_kmph'] = speed
+# Set features safely if they exist
+if 'SKU_Count' in row:
+    row['SKU_Count'] = sku
+if 'Zone_Distance_km' in row:
+    row['Zone_Distance_km'] = distance
+if 'Rider_Speed_kmph' in row:
+    row['Rider_Speed_kmph'] = speed
 if 'Speed_kmph' in row:
     row['Speed_kmph'] = speed
+
+# Encode Customer Type
 if 'Customer_Type_Returning' in row and ctype == "Returning":
     row['Customer_Type_Returning'] = 1
 if 'Customer_Type_Prime' in row and ctype == "Prime":
     row['Customer_Type_Prime'] = 1
-time_feature = f"Time_Window_{window}"
-if time_feature in row:
-    row[time_feature] = 1
+
+# Encode Time Window (must match exact model format)
+window_feature = f"Time_Window_{window}"
+if window_feature in row:
+    row[window_feature] = 1
+
+# Encode Shift
 if 'Shift_Morning' in row:
     row['Shift_Morning'] = 1 if shift == "Morning" else 0
 
-# Convert to DataFrame and predict
+# Predict
 X_input = pd.DataFrame([row])
 pred_eta = model.predict(X_input)[0]
 st.metric("📦 Predicted ETA", f"{round(pred_eta, 2)} minutes")
 
-# Delay alert logic
+# Alert
 st.header("⚠️ Delay Alert Simulation")
 deviation = st.number_input("Enter delay deviation (in minutes)", value=0.0)
 if pred_eta > 18 or deviation > 2:
